@@ -1,0 +1,6 @@
+#+TITLE: RASPBERRY PI DEPLOYMENT
+#+AUTHOR: Toby Slight
+
+Script to help automate deployment of Raspberry Pi's as kiosk style
+web frontends to system monitoring systems such as Nagios, Meraki &
+Fresh.
