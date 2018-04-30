@@ -4,35 +4,35 @@ set -eo pipefail
 #IFS=$'\n\t'
 
 # Define colors to be used when echoing output
-readonly NC=$(tput sgr0);
-readonly BLACK=$(tput setaf 0);
-readonly RED=$(tput setaf 1);
-readonly GREEN=$(tput setaf 2);
-readonly YELLOW=$(tput setaf 3);
-readonly BLUE=$(tput setaf 4);
-readonly MAGENTA=$(tput setaf 5);
-readonly CYAN=$(tput setaf 6);
-readonly WHITE=$(tput setaf 7);
+readonly NC=$(tput sgr0)
+readonly BLACK=$(tput setaf 0)
+readonly RED=$(tput setaf 1)
+readonly GREEN=$(tput setaf 2)
+readonly YELLOW=$(tput setaf 3)
+readonly BLUE=$(tput setaf 4)
+readonly MAGENTA=$(tput setaf 5)
+readonly CYAN=$(tput setaf 6)
+readonly WHITE=$(tput setaf 7)
 
 # define arrays of packages to install or remove
 readonly PKGRM=(
-    'nano'
-    'vim-tiny'
+    "nano"
+    "vim-tiny"
 )
 
 readonly PKGADD=(
-    'neovim'
-    'mg'
-    'tmux'
-    'ranger'
-    'htop'
-    'ncdu'
-    'xorg'
-    'jwm'
-    'matchbox-window-manager'
-    'chromium-browser'
-    'wmctrl'
-    'xautomation'
+    "neovim"
+    "mg"
+    "tmux"
+    "ranger"
+    "htop"
+    "ncdu"
+    "xorg"
+    "jwm"
+    "matchbox-window-manager"
+    "chromium-browser"
+    "wmctrl"
+    "xautomation"
 )
 
 # variable to get the pwd
@@ -87,6 +87,7 @@ update () {
 # function to remove packages. takes a package name as an argument.
 remove () {
     local pkg="$1"
+
     apt -y purge "$pkg"
 }
 
@@ -102,6 +103,7 @@ clean () {
 # argument.
 install () {
     local pkg="$1"
+
     apt -y install "$pkg"
 }
 
@@ -127,6 +129,7 @@ EOF
 # logs us into).
 autostartx () {
     local user="$1"
+
     cat > /home/"$user"/.bash_profile <<'EOF'
 if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
 startx -- -nocursor
@@ -139,6 +142,7 @@ EOF
 # window-manager and web browser. takes a user name as an argument.
 autoxconf () {
     local user="$1"
+
     cat > /home/"$user"/.xinitrc <<'EOF'
 #!/bin/sh
 while true; do
@@ -192,9 +196,11 @@ pkgs () {
 # function to set up new user. read in user name, add user to
 # specified groups and prompt for password.
 user () {
-    read -rep "${GREEN}Enter User Name: ${NC}" -r user;
+    local user
+
+    read -rep "${GREEN}Enter User Name: ${NC}" user;
     if id "$user" >/dev/null 2>&1; then
-	echo "${CYAN}admin user already exists.${NC}";
+	echo "${CYAN}$user already exists.${NC}";
     else
 	useradd -m -G operator,systemd-journal,sudo,users,netdev -s /bin/bash "$user";
 	passwd "$user";
@@ -206,7 +212,7 @@ user () {
 hostname () {
     local hostname
 
-    read -rep "${GREEN}Enter hostname: ${NC}" -r hostname;
+    read -rep "${GREEN}Enter hostname: ${NC}" hostname;
     echo "$hostname" | tee /etc/hostname &>/dev/null;
     sed -i '$ d' /etc/hosts;
     echo "127.0.0.1 $hostname" | sudo tee -a /etc/hosts &>/dev/null;
@@ -218,6 +224,7 @@ hostname () {
 # Should do a more advanced RegEx match...
 urlcheck () {
     local url="$1"
+
     if echo "$url" | grep -q "http"; then
 	return 0;
     else
@@ -230,43 +237,44 @@ urlcheck () {
 config () {
     local user urls=() url title
     local -i valid_user
-    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r user;
+
+    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user;
     valid_user=1;
     until [ "$valid_user" -eq 0 ]; do
 	if id "$user" > /dev/null 2>&1; then
-	    valid_user=0;
-	    autologin "$user";
-	    autostartx "$user";
-	    autoxconf "$user";
-	    read -rep "${GREEN}Enter URL to display: ${NC}" -r url;
+	    valid_user=0
+	    autologin "$user"
+	    autostartx "$user"
+	    autoxconf "$user"
+	    read -rep "${GREEN}Enter URL to display: ${NC}" url
 	    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
 		if urlcheck "$url"; then
-		    sed -i "/urls here/a\\chromium-browser --app=\"$URL\" &" /home/"$user"/.xinitrc;
-		    urls+=("$url");
+		    sed -i "/urls here/a\\chromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+		    urls+=("$url")
 		else
-		    echo "${RED}Not a valid URL. You numpty Bradley.${NP}";
+		    echo "${RED}Not a valid URL. You numpty Bradley.${NP}"
 		fi
-		read -e -p "${GREEN}Enter another URL to display: (q to quit) ${NC}" -r url;
+		read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
 	    done
 	    if [ "${#urls[@]}" -gt 0 ]; then
 		for url in "${urls[@]}"; do
-		    read -rep "${GREEN}Enter the page title of $url: ${NC}" -r title;
-		    sed -i "/titles here/a\\wmctrl -R \"$title\"; xte \"key F5\"; sleep 30s;" /home/"$user"/.xinitrc;
+		    read -rep "${GREEN}Enter the page title of $url: ${NC}" title
+		    sed -i "/titles here/a\\wmctrl -R \"$title\"; xte \"key F5\"; sleep 30s;" /home/"$user"/.xinitrc
 		done
 	    fi
-	    chown "$user":"$user" /home/"$user"/.xinitrc;
-	    chown "$user":"$user" /home/"$user"/.bash_profile;
+	    chown "$user":"$user" /home/"$user"/.xinitrc
+	    chown "$user":"$user" /home/"$user"/.bash_profile
 	else
 	    echo "${RED}$user doesn't exist.${NC}";
-	    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r user;
+	    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user
 	fi
     done
 }
 
 reboot () {
-    echo "${CYAN}Set up complete. Rebooting in 2 seconds ... Have a nice day.${NC}";
-    sleep 2s;
-    systemctl reboot;
+    echo "${CYAN}Set up complete. Rebooting in 2 seconds ... Have a nice day.${NC}"
+    sleep 2
+    systemctl reboot
 }
 
 usage () {
@@ -290,8 +298,8 @@ Options:
 }
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "${RED}This script must be run as root. Either run 'sudo -s' or prefix the script with sudo.${NC}";
-    echo "${RED}eg: 'sudo /path/to/install.sh'${NC}";
+    echo "${RED}This script must be run as root. Either run 'sudo -s' or prefix the script with sudo.${NC}"
+    echo "${RED}eg: 'sudo /path/to/install.sh'${NC}"
     exit 1
 fi
 
