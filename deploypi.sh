@@ -1,33 +1,62 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -eo pipefail
+#IFS=$'\n\t'
 
 # Define colors to be used when echoing output
-NC=`tput sgr0`;
-BLACK=`tput setaf 0`;
-RED=`tput setaf 1`;
-GREEN=`tput setaf 2`;
-YELLOW=`tput setaf 3`;
-BLUE=`tput setaf 4`;
-MAGENTA=`tput setaf 5`;
-CYAN=`tput setaf 6`;
-WHITE=`tput setaf 7`;
+readonly NC=$(tput sgr0);
+readonly BLACK=$(tput setaf 0);
+readonly RED=$(tput setaf 1);
+readonly GREEN=$(tput setaf 2);
+readonly YELLOW=$(tput setaf 3);
+readonly BLUE=$(tput setaf 4);
+readonly MAGENTA=$(tput setaf 5);
+readonly CYAN=$(tput setaf 6);
+readonly WHITE=$(tput setaf 7);
 
 # define arrays of packages to install or remove
-PKGRM=('nano' 'vim-tiny');
-PKGADD=('neovim' 'mg' 'tmux' 'ranger' 'htop' 'ncdu' 'xorg' 'jwm' 'matchbox-window-manager' 'chromium-browser' 'wmctrl' 'xautomation');
+readonly PKGRM=(
+    'nano'
+    'vim-tiny'
+)
+
+readonly PKGADD=(
+    'neovim'
+    'mg'
+    'tmux'
+    'ranger'
+    'htop'
+    'ncdu'
+    'xorg'
+    'jwm'
+    'matchbox-window-manager'
+    'chromium-browser'
+    'wmctrl'
+    'xautomation'
+)
 
 # variable to get the pwd
-SCRIPTDIR="$(cd "$(dirname "$0")"; pwd)";
-SCRIPTNAME=$(basename "$0");
-SCRIPTPATH=$SCRIPTDIR/$SCRIPTNAME;
+readonly SCRIPTDIR="$(cd "$(dirname "$0")"; pwd)"
+readonly SCRIPTNAME=$(basename "$0")
+readonly SCRIPTPATH="$SCRIPTDIR/$SCRIPTNAME"
+
+readonly UPDATEQ="${MAGENTA}Would you like to update your packages?${NC} ";
+readonly PKGSQ="${MAGENTA}Would you like to remove and install the pre-defined list of packages?${NC} ";
+readonly PASSWDQ="${MAGENTA}Would you like to change the default pi password?${NC} ";
+readonly USERQ="${MAGENTA}Would you like to setup a new user?${NC} ";
+readonly HOSTNAMEQ="${MAGENTA}Would you like to change the hostname?${NC} ";
+readonly CONFIGQ="${MAGENTA}Would you like to install configuration files to a user profile?${NC} ";
+readonly REBOOTQ="${MAGENTA}Would you like to reboot now?${NC} ";
 
 # function to read in an answer from the user. keep looping until user
 # enters valid answer.  returns 0 for yes, 1 for no or quit, and an
 # error message for anything else (before re-looping)
 ask () {
-    while :
-    do
-	read -e -p "$1" ans;
-	case $ans in
+    local question="$1"
+
+    while :; do
+	read -n 1 -rep "$question" ans;
+	case "$ans" in
 	    [yY]*)
 		return 0
 		break
@@ -41,8 +70,8 @@ ask () {
 		break
 		;;
 	    *)
-		echo "${RED}You must enter either y or n to continue.${NP}";
-		echo "${RED}You can also enter q to quit the script.${NP}";
+		echo "${RED}You must enter either y or n to continue.${NP}"
+		echo "${RED}You can also enter q to quit the script.${NP}"
 		;;
 	esac;
     done
@@ -50,28 +79,30 @@ ask () {
 
 # function to update the system without any prompting from the user (-y)
 update () {
-    apt -y update;
-    apt -y upgrade;
-    apt -y dist-upgrade;
+    apt -y update
+    apt -y upgrade
+    apt -y dist-upgrade
 }
 
 # function to remove packages. takes a package name as an argument.
 remove () {
-    apt -y purge $1;
+    local pkg="$1"
+    apt -y purge "$pkg"
 }
 
 # function to prune no longer needed packages and clean the package
 # caches.
 clean () {
-    apt -y autoremove;
-    apt -y autoclean;
-    apt -y clean;
+    apt -y autoremove
+    apt -y autoclean
+    apt -y clean
 }
 
 # function to install a package. takes the package name as an
 # argument.
 install () {
-    apt -y install $1;
+    local pkg="$1"
+    apt -y install "$pkg"
 }
 
 # function to create systemd autologin service file, which
@@ -95,7 +126,8 @@ EOF
 # a display to output to), and the tty is tty1 (the tty autologin()
 # logs us into).
 autostartx () {
-    cat > /home/$1/.bash_profile <<'EOF'
+    local user="$1"
+    cat > /home/"$user"/.bash_profile <<'EOF'
 if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
 startx -- -nocursor
 fi
@@ -106,7 +138,8 @@ EOF
 # function to create an xsession configuration file that starts the
 # window-manager and web browser. takes a user name as an argument.
 autoxconf () {
-    cat > /home/$1/.xinitrc <<'EOF'
+    local user="$1"
+    cat > /home/"$user"/.xinitrc <<'EOF'
 #!/bin/sh
 while true; do
 xset -dpms
@@ -129,26 +162,28 @@ EOF
 # function that checks what packages from the pre-defined script need
 # to be installed or removed.
 pkgs () {
-    if [ ${#PKGRM[@]} -eq 0 ]; then
+    local doclean pkg
+
+    if [ "${#PKGRM[@]}" -eq 0 ]; then
 	echo "${CYAN}No packages to remove.${NC}";
     else
 	doclean="false";
-	for PKG in ${PKGRM[@]}; do
-	    if dpkg-query -s $PKG &> /dev/null; then
+	for pkg in "${PKGRM[@]}"; do
+	    if dpkg-query -s "$pkg" &> /dev/null; then
 		doclean="true";
-		remove $PKG;
+		remove "$pkg";
 	    fi
 	done
 	# run clean function if we remove any packages.
 	[ "$doclean" == "true" ] && clean
     fi
 
-    if [ ${#PKGADD[@]} -eq 0 ]; then
+    if [ "${#PKGADD[@]}" -eq 0 ]; then
 	echo "${CYAN}No packages to install.${NC}";
     else
-	for PKG in ${PKGADD[@]}; do
-	    if ! dpkg-query -s $PKG &> /dev/null; then
-		install $PKG;
+	for pkg in "${PKGADD[@]}"; do
+	    if ! dpkg-query -s "$pkg" &> /dev/null; then
+		install "$pkg";
 	    fi
 	done
     fi
@@ -157,22 +192,24 @@ pkgs () {
 # function to set up new user. read in user name, add user to
 # specified groups and prompt for password.
 user () {
-    read -e -p "${GREEN}Enter User Name: ${NC}" -r USER;
-    if id $USER >/dev/null 2>&1; then
+    read -rep "${GREEN}Enter User Name: ${NC}" -r user;
+    if id "$user" >/dev/null 2>&1; then
 	echo "${CYAN}admin user already exists.${NC}";
     else
-	useradd -m -G adm,operator,systemd-journal,tty,dialout,cdrom,sudo,audio,www-data,video,plugdev,games,users,input,netdev,spi,i2c,gpio -s /bin/bash $USER;
-	passwd $USER;
+	useradd -m -G operator,systemd-journal,sudo,users,netdev -s /bin/bash "$user";
+	passwd "$user";
     fi
 }
 
 # function to change the devices hostname. read in hostname then echo
 # it into /etc/hostname and /etc/hosts
 hostname () {
-    read -e -p "${GREEN}Enter hostname: ${NC}" -r HN;
-    echo $HN | tee /etc/hostname &>/dev/null;
+    local hostname
+
+    read -rep "${GREEN}Enter hostname: ${NC}" -r hostname;
+    echo "$hostname" | tee /etc/hostname &>/dev/null;
     sed -i '$ d' /etc/hosts;
-    echo "127.0.0.1 $HN" | sudo tee -a /etc/hosts &>/dev/null;
+    echo "127.0.0.1 $hostname" | sudo tee -a /etc/hosts &>/dev/null;
     echo "${CYAN}Setting hostname complete. You will need to reboot for this change to take effect.${NC}";
 }
 
@@ -180,7 +217,8 @@ hostname () {
 # checks if contains the substring "http". This needs to be better!
 # Should do a more advanced RegEx match...
 urlcheck () {
-    if echo "$1" | grep -q "http"; then
+    local url="$1"
+    if echo "$url" | grep -q "http"; then
 	return 0;
     else
 	return 1;
@@ -190,36 +228,37 @@ urlcheck () {
 # function to insert urls and wmctrl pattern matchs into xinitrc
 # created by autoxconf.
 config () {
-    read -e -p "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r USER;
+    local user urls=() url title
+    local -i valid_user
+    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r user;
     valid_user=1;
-    until [ $valid_user == 0 ]; do
-	if id $USER > /dev/null 2>&1; then
+    until [ "$valid_user" -eq 0 ]; do
+	if id "$user" > /dev/null 2>&1; then
 	    valid_user=0;
-	    autologin $USER;
-	    autostartx $USER;
-	    autoxconf $USER;
-	    URLS=();
-	    read -e -p "${GREEN}Enter URL to display: ${NC}" -r URL;
-	    until [ "$URL" == "q" ] || [ "$URL" == "n" ]; do
-		if urlcheck "$URL"; then
-		    sed -i "/urls here/a\\chromium-browser --app=\"$URL\" &" /home/$USER/.xinitrc;
-		    URLS+=($URL);
+	    autologin "$user";
+	    autostartx "$user";
+	    autoxconf "$user";
+	    read -rep "${GREEN}Enter URL to display: ${NC}" -r url;
+	    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
+		if urlcheck "$url"; then
+		    sed -i "/urls here/a\\chromium-browser --app=\"$URL\" &" /home/"$user"/.xinitrc;
+		    urls+=("$url");
 		else
 		    echo "${RED}Not a valid URL. You numpty Bradley.${NP}";
 		fi
-		read -e -p "${GREEN}Enter another URL to display: (q to quit) ${NC}" -r URL;
+		read -e -p "${GREEN}Enter another URL to display: (q to quit) ${NC}" -r url;
 	    done
-	    if [ ${#URLS[@]} -gt 0 ]; then
-		for url in ${URLS[@]}; do
-		    read -e -p "${GREEN}Enter the page title of $url: ${NC}" -r title;
-		    sed -i "/titles here/a\\wmctrl -R \"$title\"; xte \"key F5\"; sleep 30s;" /home/$USER/.xinitrc;
+	    if [ "${#urls[@]}" -gt 0 ]; then
+		for url in "${urls[@]}"; do
+		    read -rep "${GREEN}Enter the page title of $url: ${NC}" -r title;
+		    sed -i "/titles here/a\\wmctrl -R \"$title\"; xte \"key F5\"; sleep 30s;" /home/"$user"/.xinitrc;
 		done
 	    fi
-	    chown $USER:$USER /home/$USER/.xinitrc;
-	    chown $USER:$USER /home/$USER/.bash_profile;
+	    chown "$user":"$user" /home/"$user"/.xinitrc;
+	    chown "$user":"$user" /home/"$user"/.bash_profile;
 	else
-	    echo "${RED}$USER doesn't exist.${NC}";
-	    read -e -p "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r USER;
+	    echo "${RED}$user doesn't exist.${NC}";
+	    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" -r user;
 	fi
     done
 }
@@ -231,7 +270,7 @@ reboot () {
 }
 
 usage () {
-    echo -n "
+    echo "
 $SCRIPTNAME [OPTION]
 
 This script must be run with one of the following options.
@@ -247,52 +286,43 @@ Options:
   -c, --config       Installs config files for a user to run in automated kiosk mode.
   -r, --reboot       Reboots the system.
   -h, --help         Display this help and exit.
-
 "
 }
 
-update_question="${MAGENTA}Would you like to update your packages?${NC} ";
-pkgs_question="${MAGENTA}Would you like to remove and install the pre-defined list of packages?${NC} ";
-passwd_question="${MAGENTA}Would you like to change the default pi password?${NC} ";
-user_question="${MAGENTA}Would you like to setup a new user?${NC} ";
-hostname_question="${MAGENTA}Would you like to change the hostname?${NC} ";
-config_question="${MAGENTA}Would you like to install configuration files to a user profile?${NC} ";
-reboot_question="${MAGENTA}Would you like to reboot now?${NC} ";
-
-if ! [ $(id -u) = 0 ]; then
+if [ "$(id -u)" -ne 0 ]; then
     echo "${RED}This script must be run as root. Either run 'sudo -s' or prefix the script with sudo.${NC}";
     echo "${RED}eg: 'sudo /path/to/install.sh'${NC}";
     exit 1
 fi
 
 # install script if not already installed
-if ! [ -x /usr/local/bin/$SCRIPTNAME ]; then
-    chmod +x $SCRIPTPATH;
-    cp $SCRIPTPATH /usr/local/bin/$SCRIPTNAME;
+if ! [ -x /usr/local/bin/"$SCRIPTNAME" ]; then
+    chmod +x "$SCRIPTPATH"
+    cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME"
 fi
 
 case "$1" in
     -a|--all)
-	ask "$update_question" && update
-	ask "$pkgs_question" && pkgs
-	ask "$passwd_question" && passwd pi
-	while ask "$user_question"; do
+	ask "$UPDATEQ" && update
+	ask "$PKGSQ" && pkgs
+	ask "$PASSWDQ" && passwd pi
+	while ask "$USERQ"; do
 	    user
 	done
-	ask "$hostname_question" && hostname
-	ask "$config_question" && config
-	ask "$reboot_question" && reboot
+	ask "$HOSTNAMEQ" && hostname
+	ask "$CONFIGQ" && config
+	ask "$REBOOTQ" && reboot
 	;;
     -A|--allyes)
 	update
 	pkgs
 	passwd pi
-	while ask "$user_question"; do
+	while ask "$USERQ"; do
 	    user
 	done
 	hostname
 	config
-	ask "$reboot_question" && reboot
+	ask "$REBOOTQ" && reboot
 	;;
     -u|--update)
 	update
