@@ -10,10 +10,11 @@ display monitoring systems such as those of Nagios, Meraki & Fresh.
 
 *This script must be run as root.*
 
-sudo deploypi [OPTION]
+=sudo deploypi [OPTION]=
 
 Optional arguments:
 
++-------+-----------------+-------------------------------------------------------+
 | TERSE | VERBOSE         | DESCRIPTION                                           |
 |-------+-----------------+-------------------------------------------------------|
 | -a    | /--automatic/   | Executes all actions interactively.                   |
@@ -35,6 +36,6 @@ Optional arguments:
 | -r    | /--reboot/      | Reboots the system.                                   |
 |-------+-----------------+-------------------------------------------------------|
 | -h    | /--help/        | Display this help and exit.                           |
-|-------+-----------------+-------------------------------------------------------|
++-------+-----------------+-------------------------------------------------------+
 
 If no arguments are given, all actions are executed interactively.
