@@ -70,7 +70,7 @@ USAGE:
 
 sudo $SCRIPTNAME [OPTION]
 
-This script must be run as root.
+${RED}This script must be run as root.${NC}
 
 Optional arguments:
 
@@ -96,8 +96,6 @@ If no arguments are given, all actions are executed interactively.
 
 chkroot() {
     if [ "$(id -u)" -ne 0 ]; then
-	echo
-	echo "${RED}This script must be run as root.${NC}"
 	usage
 	exit 1
     fi
