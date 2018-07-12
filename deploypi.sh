@@ -108,15 +108,16 @@ install () {
     apt -y install "$pkg"
 }
 
-# function to create systemd autologin service file, which
+# function to create systemd write_ttyconf service file, which
 # automatically logs a use into tty1. takes a user name as an
 # argument.
-autologin () {
+write_ttyconf () {
+    local user="$1"
     mkdir -p /etc/systemd/system/getty@tty1.service.d
     cat > /etc/systemd/system/getty@tty1.service.d/override.conf <<EOF
 [Service]
 ExecStart=
-ExecStart=-/sbin/agetty --autologin $1 --noclear %I $TERM
+ExecStart=-/sbin/agetty --autologin $user --noclear %I $TERM
 EOF
     cat > /etc/systemd/system/getty@tty1.service.d/noclear.conf <<EOF
 [Service]
@@ -128,12 +129,12 @@ EOF
 # xserver if the $DISPLAY environmental variable is set (i.e. there is
 # a display to output to), and the tty is tty1 (the tty autologin()
 # logs us into).
-autostartx () {
+write_profile () {
     local user="$1"
 
     cat > /home/"$user"/.bash_profile <<'EOF'
 if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
-startx -- -nocursor
+startx
 fi
 [ -f ~/.bashrc ] && source ~/.bashrc
 EOF
@@ -141,7 +142,7 @@ EOF
 
 # function to create an xsession configuration file that starts the
 # window-manager and web browser. takes a user name as an argument.
-autoxconf () {
+write_xinitrc () {
     local user="$1"
 
     cat > /home/"$user"/.xinitrc <<'EOF'
@@ -224,31 +225,54 @@ checkurl () {
     fi
 }
 
+switchurl() {
+    local url="$1"
+
+    read -rep "${GREEN}Enter the page title of $url: ${NC}" title
+    read -rep "${GREEN}Time between refreshes (in seconds): ${NC}" time
+
+    if [[ "$time" =~ ^[0-9]+$ ]]; then
+	sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+	sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
+    else
+	echo "${RED}Invalid time. Try again!${NC}"
+	switchurl "$url"
+    fi
+}
+
 addurls() {
     local
     local -a urls=("$@")
+
     for url in "${urls[@]}"; do
-	read -rep "${GREEN}Enter the page title of $url: ${NC}" title
-	read -rep "${GREEN}Time between refreshes (in seconds): ${NC}" time
-	if [[ "$time" =~ ^[0-9]+$ ]]; then
-	    if [[ "${#urls[@]}" -gt 1 ]]; then
-		sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-		sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
-	    elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
-		sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-		sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
-	    else
-		sed -i "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
-	    fi
+	if [[ "${#urls[@]}" -gt 1 ]]; then
+	    switchurl "$url"
+	elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
+	    switchurl "$url"
 	else
-	    echo "${RED}Invalid time. Try again!${NC}"
-	    urlswitch "${urls[@]}"
+	    sed -i "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
 	fi
     done
 }
 
-# function to insert urls and wmctrl pattern matchs into xinitrc
-# created by autoxconf.
+# continuously prompt for urls until the user quits, then return an array of
+# entered urls.
+geturls() {
+    read -rep "${GREEN}Enter URL to display: ${NC}" url
+    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
+	if checkurl "$url"; then
+	    urls+=("$url")
+	else
+	    echo "${RED}Not a valid URL. You numpty Bradley.${NP}"
+	fi
+	read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
+    done
+    echo "${urls[@]}"
+}
+
+# Wrapper function to write the necessary configuration files for automating the
+# process of logging the user into tty1, and then starting and configuring the
+# xsession.
 config () {
     local user urls=() url title
     local -i valid_user
@@ -258,18 +282,10 @@ config () {
     until [ "$valid_user" -eq 0 ]; do
 	if id "$user" > /dev/null 2>&1; then
 	    valid_user=0
-	    autologin "$user"
-	    autostartx "$user"
-	    autoxconf "$user"
-	    read -rep "${GREEN}Enter URL to display: ${NC}" url
-	    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
-		if checkurl "$url"; then
-		    urls+=("$url")
-		else
-		    echo "${RED}Not a valid URL. You numpty Bradley.${NP}"
-		fi
-		read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
-	    done
+	    write_ttyconf "$user"
+	    write_profile "$user"
+	    write_xinitrc "$user"
+	    urls=($(geturls))
 	    addurls "${urls[@]}"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
