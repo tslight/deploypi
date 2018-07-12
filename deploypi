@@ -138,7 +138,9 @@ ask () {
 # install script if not already installed
 install_self() {
     chmod +x "$SCRIPTPATH"
-    cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME"
+    if cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME" 2>&1 > /dev/null; then
+	echo "${CYAN}Sucessfully installed $SCRIPTNAME.${NC}"
+    fi
 }
 
 # function to update the system without any prompting from the user (-y)
