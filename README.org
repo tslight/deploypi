@@ -1,7 +1,7 @@
 #+TITLE:
 #+AUTHOR: Toby Slight
 
-* AUTOMATED PI KIOSK BROWSER DEPLOYMENT
+* AUTOMATED PI BROWSER KIOSK DEPLOYMENT
 
 Script to automate deployment of a Raspberry Pi as a web browser based kiosk to
 display monitoring systems such as those of Nagios, Meraki & Fresh.
