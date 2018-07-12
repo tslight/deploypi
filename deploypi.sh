@@ -22,7 +22,8 @@ readonly PKGRM=(
 
 readonly PKGADD=(
     "neovim"
-    "mg"
+    "emacs-nox"
+    "ed"
     "tmux"
     "ranger"
     "htop"
@@ -147,16 +148,9 @@ autoxconf () {
 #!/bin/sh
 while :; do
 xset -dpms; xset s off
-# Start the window manager (add "-use_cursor no" if you don't want mouse interaction)
-matchbox-window-manager -use_titlebar no &
-# examples:
-# chromium-browser  --app=https://support.mcsaatchi.com/helpdesk &
-# chromium-browser --app=http://10.1.1.198/nagiosxi/includes/components/opscreen/opscreen.php &
-# urls here
-while :; do
-echo &> /dev/null
-# titles here
-done
+matchbox-window-manager -use_titlebar no -use_cursor yes &
+# URLS
+# TITLES
 done
 EOF
 }
@@ -220,7 +214,7 @@ hostname () {
 # function to check for valid url. takes a string as an input and
 # checks if contains the substring "http". This needs to be better!
 # Should do a more advanced RegEx match...
-urlcheck () {
+checkurl () {
     local url="$1"
 
     if echo "$url" | grep -q "http"; then
@@ -228,6 +222,29 @@ urlcheck () {
     else
 	return 1;
     fi
+}
+
+addurls() {
+    local
+    local -a urls=("$@")
+    for url in "${urls[@]}"; do
+	read -rep "${GREEN}Enter the page title of $url: ${NC}" title
+	read -rep "${GREEN}Time between refreshes (in seconds): ${NC}" time
+	if [[ "$time" =~ ^[0-9]+$ ]]; then
+	    if [[ "${#urls[@]}" -gt 1 ]]; then
+		sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+		sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
+	    elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
+		sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+		sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
+	    else
+		sed -i "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
+	    fi
+	else
+	    echo "${RED}Invalid time. Try again!${NC}"
+	    urlswitch "${urls[@]}"
+	fi
+    done
 }
 
 # function to insert urls and wmctrl pattern matchs into xinitrc
@@ -246,20 +263,14 @@ config () {
 	    autoxconf "$user"
 	    read -rep "${GREEN}Enter URL to display: ${NC}" url
 	    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
-		if urlcheck "$url"; then
-		    sed -i "/urls here/a\\chromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+		if checkurl "$url"; then
 		    urls+=("$url")
 		else
 		    echo "${RED}Not a valid URL. You numpty Bradley.${NP}"
 		fi
 		read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
 	    done
-	    if [ "${#urls[@]}" -gt 0 ]; then
-		for url in "${urls[@]}"; do
-		    read -rep "${GREEN}Enter the page title of $url: ${NC}" title
-		    sed -i "/titles here/a\\wmctrl -R \"$title\"; xte \"key F5\"; sleep 30s;" /home/"$user"/.xinitrc
-		done
-	    fi
+	    addurls "${urls[@]}"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
 	else
