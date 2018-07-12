@@ -269,10 +269,9 @@ switch_windows() {
 
     if "$switch"; then
 	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"" /home/"$user"/.xinitrc
+	refresh_window "$user"
     elif "$refresh"; then
-	if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
-	    sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
-	fi
+	refresh_window "$user"
     fi
 
     read -rep "${GREEN}Time between refresh or window switch ${YELLOW}(in seconds)${GREEN}? ${NC}" time
@@ -285,7 +284,7 @@ switch_windows() {
 }
 
 add_urls() {
-    local switch=false refresh=false
+    local switch=false refresh=false user="$1"
 
     if [[ "${#URLS[@]}" -gt 1 ]]; then
 	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
@@ -298,7 +297,7 @@ add_urls() {
     for url in "${URLS[@]}"; do
 	if [[ "$switch" = true || "$refresh" = true ]]; then
 	    sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-	    switch_windows "$url" "$switch" "$refresh"
+	    switch_windows "$url" "$switch" "$refresh" "$user"
 	else
 	    sed -i.bak "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
 	fi
@@ -308,7 +307,7 @@ add_urls() {
 # function to check for valid url. takes a string as an input and checks if
 # contains the substring "http". This needs to be better!  Should do a more
 # advanced RegEx match...
-checkurl () {
+ckurl () {
     local url="$1"
 
     if echo "$url" | grep -q "http"; then
@@ -323,7 +322,7 @@ checkurl () {
 get_urls() {
     read -rep "${GREEN}Enter URL to display: ${NC}" url
     until [ "$url" == "q" ] || [ "$url" == "n" ]; do
-	if checkurl "$url"; then
+	if ckurl "$url"; then
 	    URLS+=("$url")
 	else
 	    echo "${RED}$url is not a valid URL. You numpty Bradley.${NP}"
@@ -401,7 +400,7 @@ install_config () {
 	    write_profile "$user"
 	    write_xinitrc "$user"
 	    get_urls
-	    add_urls "${URLS[@]}"
+	    add_urls "${URLS[@]}" "$user"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
 	else
