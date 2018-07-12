@@ -326,7 +326,7 @@ get_urls() {
 	else
 	    echo "${RED}$url is not a valid URL. You numpty Bradley.${NP}"
 	fi
-	read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
+	read -rep "${GREEN}Enter another URL to display ${YELLOW}(q to quit)${GREEN}: ${NC}" url
     done
 }
 
@@ -388,17 +388,16 @@ EOF
 # xsession.
 install_config () {
     local user url title
-    local -i valid_user
+    local -i valid_user=false
 
     read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user;
-    valid_user=1;
-    until [ "$valid_user" -eq 0 ]; do
+    until "$valid_user"; do
 	if id "$user" > /dev/null 2>&1; then
-	    valid_user=0
+	    valid_user=true
 	    write_ttyconf "$user"
 	    write_profile "$user"
 	    write_xinitrc "$user"
-	    get_urls
+	    get_urls # returns a instantiation of a global var
 	    add_urls "${URLS[@]}" "$user"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
