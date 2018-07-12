@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 
-
 ###############################################################################
 #                                  CONSTANTS                                  #
 ###############################################################################
 
-# Define colors to be used when echoing output
 readonly NC=$(tput sgr0)
 readonly BLACK=$(tput setaf 0)
 readonly RED=$(tput setaf 1)
@@ -16,13 +14,12 @@ readonly MAGENTA=$(tput setaf 5)
 readonly CYAN=$(tput setaf 6)
 readonly WHITE=$(tput setaf 7)
 
-# define arrays of packages to install or remove
-readonly PKGRM=(
+readonly PURGE_PKGS=(
     "nano"
     "vim-tiny"
 )
 
-readonly PKGADD=(
+readonly INSTALL_PKGS=(
     "neovim"
     "emacs-nox"
     "ed"
@@ -38,19 +35,15 @@ readonly PKGADD=(
     "xautomation"
 )
 
-# variable to get the pwd
-readonly SCRIPTDIR="$(cd "$(dirname "$0")"; pwd)"
-readonly SCRIPTNAME=$(basename "$0")
-readonly SCRIPTPATH="$SCRIPTDIR/$SCRIPTNAME"
+# pwd, scriptname, full path of script & log
+readonly SELFDIR="$(cd "$(dirname "$0")"; pwd)"
+readonly SELFNAME=$(basename "$0")
+readonly SELFPATH="$SELFDIR/$SELFNAME"
+readonly LOG="$SELFDIR/deploypi.log"
 
-# variables to hold question strings and colors
-readonly UPDATEQ="${MAGENTA}Would you like to update your packages?${NC} ";
-readonly PKGSQ="${MAGENTA}Would you like to remove and install the pre-defined list of packages?${NC} ";
-readonly PASSWDQ="${MAGENTA}Would you like to change the default pi password?${NC} ";
-readonly USERQ="${MAGENTA}Would you like to setup a new user?${NC} ";
-readonly HOSTNAMEQ="${MAGENTA}Would you like to change the hostname?${NC} ";
-readonly CONFIGQ="${MAGENTA}Would you like to install configuration files to a user profile?${NC} ";
-readonly REBOOTQ="${MAGENTA}Would you like to reboot now?${NC} ";
+# global questions
+readonly USERQ="${MAGENTA}Would you like to ${YELLOW}setup a new user${MAGENTA}?${NC} ";
+readonly REBOOTQ="${MAGENTA}Would you like to ${YELLOW}reboot${MAGENTA} now?${NC} ";
 
 
 ###############################################################################
@@ -68,7 +61,7 @@ usage () {
     echo "
 USAGE:
 
-sudo $SCRIPTNAME [OPTION]
+sudo $SELFNAME [OPTION]
 
 ${RED}This script must be run as root.${NC}
 
@@ -112,15 +105,12 @@ ask () {
 	case "$ans" in
 	    [yY]*)
 		return 0
-		break
 		;;
 	    [nN]*)
 		return 1
-		break
 		;;
 	    [qQ]*)
 		exit 1
-		break
 		;;
 	    *)
 		echo "${RED}You must enter either y or n to continue.${NP}"
@@ -137,53 +127,50 @@ ask () {
 
 # install script if not already installed
 install_self() {
-    chmod +x "$SCRIPTPATH"
-    if cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME" 2>&1 > /dev/null; then
-	echo "${CYAN}Sucessfully installed $SCRIPTNAME.${NC}"
+    chmod +x "$SELFPATH"
+    if cp "$SELFPATH" /usr/local/bin/"$SELFNAME" 2>&1 > "$LOG"; then
+	echo "${CYAN}Sucessfully installed $SELFNAME.${NC}"
     fi
 }
 
 # function to update the system without any prompting from the user (-y)
 update_pi () {
-    apt -y update
-    apt -y upgrade
-    apt -y dist-upgrade
+    echo "${CYAN}Updating packages...${NC}"
+    apt -y update &> "$LOG"
+    apt -y upgrade &> "$LOG"
+    apt -y dist-upgrade &>"$LOG"
 }
 
 # function to remove packages. takes a package name as an argument.
 remove_pkg () {
-    local pkg="$1"
-
-    apt -y purge "$pkg"
+    echo "${CYAN}Removing $pkg...${NC}";
+    apt -y purge "$1" &> "$LOG"
 }
 
-# function to prune no longer needed packages and clean the package
-# caches.
+# function to prune no longer needed packages and clean the package caches.
 clean () {
-    apt -y autoremove
-    apt -y autoclean
-    apt -y clean
+    echo "${CYAN}Cleaning up...${NC}"
+    apt -y autoremove &> "$LOG"
+    apt -y autoclean &> "$LOG"
+    apt -y clean  &> "$LOG"
 }
 
-# function to install a package. takes the package name as an
-# argument.
+# function to install a package. takes the package name as an argument.
 install_pkg () {
-    local pkg="$1"
-
-    apt -y install "$pkg"
+    echo "${CYAN}Installing $pkg...${NC}";
+    apt -y install "$1"
 }
 
-# function that checks what packages from the pre-defined script need
-# to be installed or removed.
+# function that checks what packages from the pre-defined script need to be
+# installed or removed.
 install_pkgs () {
-    local doclean pkg
+    local doclean=false pkg
 
-    if [ "${#PKGRM[@]}" -eq 0 ]; then
+    if [ "${#PURGE_PKGS[@]}" -eq 0 ]; then
 	echo "${CYAN}No packages to remove.${NC}";
     else
-	doclean="false";
-	for pkg in "${PKGRM[@]}"; do
-	    if dpkg-query -s "$pkg" &> /dev/null; then
+	for pkg in "${PURGE_PKGS[@]}"; do
+	    if dpkg-query -s "$pkg" &> "$LOG"; then
 		doclean="true";
 		remove_pkg "$pkg";
 	    else
@@ -194,11 +181,11 @@ install_pkgs () {
 	[ "$doclean" == "true" ] && clean
     fi
 
-    if [ "${#PKGADD[@]}" -eq 0 ]; then
+    if [ "${#INSTALL_PKGS[@]}" -eq 0 ]; then
 	echo "${CYAN}No packages to install.${NC}";
     else
-	for pkg in "${PKGADD[@]}"; do
-	    if ! dpkg-query -s "$pkg" &> /dev/null; then
+	for pkg in "${INSTALL_PKGS[@]}"; do
+	    if ! dpkg-query -s "$pkg" &> "$LOG"; then
 		install_pkg "$pkg";
 	    else
 		echo "${CYAN}$pkg already installed.${NC}";
@@ -431,14 +418,20 @@ automatic_mode() {
 }
 
 interactive_mode() {
-    ask "$UPDATEQ" && update_pi
-    ask "$PKGSQ" && install_pkgs
-    ask "$PASSWDQ" && chpasswd
+    local updateq="${MAGENTA}Would you like to ${YELLOW}update${MAGENTA} your packages?${NC} ";
+    local pkgsq="${MAGENTA}Would you like to ${YELLOW}remove and install${MAGENTA} the pre-defined list of packages?${NC} ";
+    local passwdq="${MAGENTA}Would you like to ${YELLOW}change the password${MAGENTA} of default pi user?${NC} ";
+    local hostnameq="${MAGENTA}Would you like to ${YELLOW}change the hostname${MAGENTA}?${NC} ";
+    local configq="${MAGENTA}Would you like to ${YELLOW}install configuration files${MAGENTA} to a user profile?${NC} ";
+
+    ask "$updateq" && update_pi
+    ask "$pkgsq" && install_pkgs
+    ask "$passwdq" && chpasswd
     while ask "$USERQ"; do
 	add_user
     done
-    ask "$HOSTNAMEQ" && set_hostname
-    ask "$CONFIGQ" && install_config
+    ask "$hostnameq" && set_hostname
+    ask "$configq" && install_config
     ask "$REBOOTQ" && reboot
 }
 
