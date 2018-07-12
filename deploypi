@@ -75,7 +75,7 @@ ${RED}This script must be run as root.${NC}
 Optional arguments:
 
   -a, --interactive  Executes all actions, interactively.
-  -A, --automatic    Executes all actions, automatically.
+  -A, --automate     Executes all actions, automatically.
   -u, --update       Updates all packages on the system.
   -i, --install      Installs and removes the necessary packages.
   -p, --password     Changes the default pi user password.
@@ -455,7 +455,7 @@ main () {
 		    interactive_mode
 		    return
 		    ;;
-		-A|--automatic)
+		-A|--automate)
 		    automatic_mode
 		    return
 		    ;;

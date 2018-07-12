@@ -1,4 +1,3 @@
-#+TITLE:
 #+AUTHOR: Toby Slight
 
 * AUTOMATED PI BROWSER KIOSK DEPLOYMENT
@@ -17,9 +16,9 @@ display monitoring systems such as those of Nagios, Meraki & Fresh.
 |-------+-----------------+-------------------------------------------------------|
 | TERSE | VERBOSE         | DESCRIPTION                                           |
 |-------+-----------------+-------------------------------------------------------|
-| -a    | /--automatic/   | Executes all actions interactively.                   |
+| -a    | /--interactive/ | Executes all actions interactively.                   |
 |-------+-----------------+-------------------------------------------------------|
-| -A    | /--interactive/ | Executes all actions automatically.                   |
+| -A    | /--automate/    | Executes all actions automatically.                   |
 |-------+-----------------+-------------------------------------------------------|
 | -u    | /--update/      | Updates all packages on the system.                   |
 |-------+-----------------+-------------------------------------------------------|
