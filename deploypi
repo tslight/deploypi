@@ -254,33 +254,32 @@ reboot () {
 #                                 URL PARSING                                  #
 ###############################################################################
 
-refresh_window() {
-    local -i user="$1"
+sleep_time() {
+    local user="$1"
 
-    if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
-	sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
-    fi
-}
-
-switch_windows() {
-    local url="$1" switch="$2" refresh="$3" user="$4"
-
-    read -rep "${GREEN}Page title of ${YELLOW}$url${GREEN}? ${NC}" title
-
-    if "$switch"; then
-	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"" /home/"$user"/.xinitrc
-	refresh_window "$user"
-    elif "$refresh"; then
-	refresh_window "$user"
-    fi
-
-    read -rep "${GREEN}Time between refresh or window switch ${YELLOW}(in seconds)${GREEN}? ${NC}" time
+    read -rep "${GREEN}Time ${YELLOW}(in seconds)${GREEN} between refreshes/switches? ${NC}" time
     if [[ "$time" =~ ^[0-9]+$ ]]; then
 	sed -i.bak "/SLEEP/asleep ${time}s" /home/"$user"/.xinitrc
     else
 	echo "${RED}Invalid time. Try again!${NC}"
-	switch_windows "$url"
+	sleep_time "$user"
     fi
+}
+
+switch_refresh() {
+    local url="$1" switch="$2" refresh="$3" user="$4"
+
+    if "$switch"; then
+	read -rep "${GREEN}Enter a substring from ${YELLOW}$url${GREEN} title: ${NC}" title
+	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"" /home/"$user"/.xinitrc
+	if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
+	    sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+	fi
+    elif "$refresh"; then
+	sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+    fi
+
+    sleep_time "$user"
 }
 
 add_urls() {
@@ -297,7 +296,7 @@ add_urls() {
     for url in "${URLS[@]}"; do
 	if [[ "$switch" = true || "$refresh" = true ]]; then
 	    sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-	    switch_windows "$url" "$switch" "$refresh" "$user"
+	    switch_refresh "$url" "$switch" "$refresh" "$user"
 	else
 	    sed -i.bak "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
 	fi
