@@ -66,21 +66,26 @@ declare -a URLS
 ###############################################################################
 usage () {
     echo "
-$SCRIPTNAME [OPTION]
+USAGE:
 
-This script must be run with one of the following options.
+sudo $SCRIPTNAME [OPTION]
 
-Options:
-  -a, --all          Executes all the commands in the order listed below.
-  -A, --allyes       Executes all the commands accepting yes for all parameters.
+This script must be run as root.
+
+Optional arguments:
+
+  -a, --interactive  Executes all actions, interactively.
+  -A, --automatic    Executes all actions, automatically.
   -u, --update       Updates all packages on the system.
-  -i, --install      Installs and removes the pre-defined list of packages.
+  -i, --install      Installs and removes the necessary packages.
   -p, --password     Changes the default pi user password.
   -U, --user         Adds a new user to the system.
   -H, --hostname     Changes the systems hostname.
-  -c, --config       Installs config files for a user to run in automated kiosk mode.
+  -c, --config       Writes config files to initialize browser kiosk mode.
   -r, --reboot       Reboots the system.
   -h, --help         Display this help and exit.
+
+If no arguments are given, all actions are executed interactively.
 "
 }
 
@@ -91,8 +96,8 @@ Options:
 
 chkroot() {
     if [ "$(id -u)" -ne 0 ]; then
-	echo "${RED}This script must be run as root. Either run 'sudo -s' or prefix the script with sudo.${NC}"
-	echo "${RED}eg: 'sudo /path/to/install.sh'${NC}"
+	echo
+	echo "${RED}This script must be run as root.${NC}"
 	usage
 	exit 1
     fi
@@ -408,38 +413,51 @@ install_config () {
     done
 }
 
+
+###############################################################################
+#                                     GO!                                     #
+###############################################################################
+
+automatic_mode() {
+    update_pi
+    install_pkgs
+    chpasswd
+    while ask "$USERQ"; do
+	add_user
+    done
+    set_hostname
+    install_config
+    ask "$REBOOTQ" && reboot
+}
+
+interactive_mode() {
+    ask "$UPDATEQ" && update_pi
+    ask "$PKGSQ" && install_pkgs
+    ask "$PASSWDQ" && chpasswd
+    while ask "$USERQ"; do
+	add_user
+    done
+    ask "$HOSTNAMEQ" && set_hostname
+    ask "$CONFIGQ" && install_config
+    ask "$REBOOTQ" && reboot
+}
+
 main () {
     local -a args=("$@")
     chkroot
     install_self
     if [[ "${#args[@]}" -eq 0 ]]; then
-	usage
+	interactive_mode
 	return
     fi
     for arg in "${args[@]}"; do
 	case "$arg" in
-	    -a|--all)
-		ask "$UPDATEQ" && update_pi
-		ask "$PKGSQ" && install_pkgs
-		ask "$PASSWDQ" && chpasswd
-		while ask "$USERQ"; do
-		    add_user
-		done
-		ask "$HOSTNAMEQ" && set_hostname
-		ask "$CONFIGQ" && install_config
-		ask "$REBOOTQ" && reboot
+	    -a|--interactive)
+		install_self
 		return
 		;;
-	    -A|--allyes)
-		update_pi
-		install_pkgs
-		chpasswd
-		while ask "$USERQ"; do
-		    add_user
-		done
-		set_hostname
-		install_config
-		ask "$REBOOTQ" && reboot
+	    -A|--automatic)
+		automatic_mode
 		return
 		;;
 	    -u|--update)
@@ -464,9 +482,6 @@ main () {
 		reboot
 		;;
 	    -h|--help)
-		usage
-		;;
-	    *)
 		usage
 		;;
 	esac
