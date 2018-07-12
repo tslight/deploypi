@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-set -eo pipefail # fail quickly and gracefully
 
 ###############################################################################
 #                                  CONSTANTS                                  #
@@ -53,6 +52,7 @@ readonly HOSTNAMEQ="${MAGENTA}Would you like to change the hostname?${NC} ";
 readonly CONFIGQ="${MAGENTA}Would you like to install configuration files to a user profile?${NC} ";
 readonly REBOOTQ="${MAGENTA}Would you like to reboot now?${NC} ";
 
+
 ###############################################################################
 #                                   GLOBALS                                   #
 ###############################################################################
@@ -89,7 +89,7 @@ Options:
 #                                MISC FUNCTIONS                               #
 ###############################################################################
 
-checkroot() {
+chkroot() {
     if [ "$(id -u)" -ne 0 ]; then
 	echo "${RED}This script must be run as root. Either run 'sudo -s' or prefix the script with sudo.${NC}"
 	echo "${RED}eg: 'sudo /path/to/install.sh'${NC}"
@@ -133,22 +133,20 @@ ask () {
 ###############################################################################
 
 # install script if not already installed
-installself() {
-    if ! [ -x /usr/local/bin/"$SCRIPTNAME" ]; then
-	chmod +x "$SCRIPTPATH"
-	cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME"
-    fi
+install_self() {
+    chmod +x "$SCRIPTPATH"
+    cp "$SCRIPTPATH" /usr/local/bin/"$SCRIPTNAME"
 }
 
 # function to update the system without any prompting from the user (-y)
-update () {
+update_pi () {
     apt -y update
     apt -y upgrade
     apt -y dist-upgrade
 }
 
 # function to remove packages. takes a package name as an argument.
-remove () {
+remove_pkg () {
     local pkg="$1"
 
     apt -y purge "$pkg"
@@ -164,7 +162,7 @@ clean () {
 
 # function to install a package. takes the package name as an
 # argument.
-install () {
+install_pkg () {
     local pkg="$1"
 
     apt -y install "$pkg"
@@ -172,7 +170,7 @@ install () {
 
 # function that checks what packages from the pre-defined script need
 # to be installed or removed.
-pkgs () {
+install_pkgs () {
     local doclean pkg
 
     if [ "${#PKGRM[@]}" -eq 0 ]; then
@@ -182,7 +180,9 @@ pkgs () {
 	for pkg in "${PKGRM[@]}"; do
 	    if dpkg-query -s "$pkg" &> /dev/null; then
 		doclean="true";
-		remove "$pkg";
+		remove_pkg "$pkg";
+	    else
+		echo "${CYAN}$pkg already removed.${NC}"
 	    fi
 	done
 	# run clean function if we remove any packages.
@@ -194,7 +194,9 @@ pkgs () {
     else
 	for pkg in "${PKGADD[@]}"; do
 	    if ! dpkg-query -s "$pkg" &> /dev/null; then
-		install "$pkg";
+		install_pkg "$pkg";
+	    else
+		echo "${CYAN}$pkg already installed.${NC}";
 	    fi
 	done
     fi
@@ -205,9 +207,19 @@ pkgs () {
 #                               ADMIN FUNCTIONS                               #
 ###############################################################################
 
+chpasswd() {
+    if passwd pi; then
+	echo "${CYAN}Sucessfully changed default pi user password.${NC}"
+    else
+	if ask "${RED}Changing pi user password failed. Try again? ${NC}"; then
+	    chpasswd
+	fi
+    fi
+}
+
 # function to set up new user. read in user name, add user to
 # specified groups and prompt for password.
-adduser () {
+add_user () {
     local user
 
     read -rep "${GREEN}Enter User Name: ${NC}" user;
@@ -221,12 +233,12 @@ adduser () {
 
 # function to change the devices hostname. read in hostname then echo
 # it into /etc/hostname and /etc/hosts
-sethostname () {
+set_hostname () {
     local hostname
 
     read -rep "${GREEN}Enter hostname: ${NC}" hostname;
     echo "$hostname" | tee /etc/hostname &>/dev/null;
-    sed -i '$ d' /etc/hosts;
+    sed -i.bak '$ d' /etc/hosts;
     echo "127.0.0.1 $hostname" | sudo tee -a /etc/hosts &>/dev/null;
     echo "${CYAN}Setting hostname complete. You will need to reboot for this change to take effect.${NC}";
 }
@@ -242,29 +254,37 @@ reboot () {
 #                                 URL PARSING                                  #
 ###############################################################################
 
-switchurl() {
+switch_windows() {
     local url="$1"
 
-    read -rep "${GREEN}Enter the page title of $url: ${NC}" title
-    read -rep "${GREEN}Time between refreshes (in seconds): ${NC}" time
+    read -rep "${GREEN}Page title of ${YELLOW}$url${GREEN}? ${NC}" title
+    read -rep "${GREEN}Time between refreshes (in seconds)? ${NC}" time
 
     if [[ "$time" =~ ^[0-9]+$ ]]; then
-	sed -i "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-	sed -i "/TITLES/awhile \:\; do\nwmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s\ndone" /home/"$user"/.xinitrc
+	sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s" /home/"$user"/.xinitrc
     else
 	echo "${RED}Invalid time. Try again!${NC}"
-	switchurl "$url"
+	switch_windows "$url"
     fi
 }
 
-addurls() {
+add_urls() {
+    local switch_refresh
+
+    if [[ "${#URLS[@]}" -gt 1 ]]; then
+	sed -i.bak "/TITLES/awhile \:\; do\n\# WMCTRL\ndone" /home/"$user"/.xinitrc
+	switch_refresh=true
+    elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
+	sed -i.bak "/TITLES/awhile \:\; do\n\# WMCTRL\ndone" /home/"$user"/.xinitrc
+	switch_refresh=true
+    fi
+
     for url in "${URLS[@]}"; do
-	if [[ "${#URLS[@]}" -gt 1 ]]; then
-	    switchurl "$url"
-	elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
-	    switchurl "$url"
+	if "$switch_refresh"; then
+	    switch_windows "$url"
 	else
-	    sed -i "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
+	    sed -i.bak "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
 	fi
     done
 }
@@ -284,13 +304,13 @@ checkurl () {
 
 # continuously prompt for urls until the user quits, then return an array of
 # entered urls.
-geturls() {
+get_urls() {
     read -rep "${GREEN}Enter URL to display: ${NC}" url
     until [ "$url" == "q" ] || [ "$url" == "n" ]; do
 	if checkurl "$url"; then
 	    URLS+=("$url")
 	else
-	    echo "${RED}Not a valid URL. You numpty Bradley.${NP}"
+	    echo "${RED}$url is not a valid URL. You numpty Bradley.${NP}"
 	fi
 	read -rep "${GREEN}Enter another URL to display: (q to quit) ${NC}" url
     done
@@ -352,7 +372,7 @@ EOF
 # Wrapper function to write the necessary configuration files for automating the
 # process of logging the user into tty1, and then starting and configuring the
 # xsession.
-installconfig () {
+install_config () {
     local user url title
     local -i valid_user
 
@@ -364,8 +384,8 @@ installconfig () {
 	    write_ttyconf "$user"
 	    write_profile "$user"
 	    write_xinitrc "$user"
-	    geturls
-	    addurls "${URLS[@]}"
+	    get_urls
+	    add_urls "${URLS[@]}"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
 	else
@@ -376,59 +396,68 @@ installconfig () {
 }
 
 main () {
-    checkroot
-    installself
-    case "$@" in
-	-a|--all)
-	    ask "$UPDATEQ" && update
-	    ask "$PKGSQ" && pkgs
-	    ask "$PASSWDQ" && passwd pi
-	    while ask "$USERQ"; do
-		adduser
-	    done
-	    ask "$HOSTNAMEQ" && sethostname
-	    ask "$CONFIGQ" && installconfig
-	    ask "$REBOOTQ" && reboot
-	    ;;
-	-A|--allyes)
-	    update
-	    pkgs
-	    passwd pi
-	    while ask "$USERQ"; do
-		user
-	    done
-	    hostname
-	    config
-	    ask "$REBOOTQ" && reboot
-	    ;;
-	-u|--update)
-	    update
-	    ;;
-	-i|--install)
-	    pkgs
-	    ;;
-	-p|--password)
-	    passwd pi
-	    ;;
-	-U|--user)
-	    user
-	    ;;
-	-H|--hostname)
-	    hostname
-	    ;;
-	-c|--config)
-	    config
-	    ;;
-	-r|--reboot)
-	    reboot
-	    ;;
-	-h|--help)
-	    usage
-	    ;;
-	*)
-	    usage
-	    ;;
-    esac
+    local -a args=("$@")
+    chkroot
+    install_self
+    if [[ "${#args[@]}" -eq 0 ]]; then
+	usage
+	return
+    fi
+    for arg in "${args[@]}"; do
+	case "$arg" in
+	    -a|--all)
+		ask "$UPDATEQ" && update_pi
+		ask "$PKGSQ" && install_pkgs
+		ask "$PASSWDQ" && chpasswd
+		while ask "$USERQ"; do
+		    add_user
+		done
+		ask "$HOSTNAMEQ" && set_hostname
+		ask "$CONFIGQ" && install_config
+		ask "$REBOOTQ" && reboot
+		return
+		;;
+	    -A|--allyes)
+		update_pi
+		install_pkgs
+		chpasswd
+		while ask "$USERQ"; do
+		    add_user
+		done
+		set_hostname
+		install_config
+		ask "$REBOOTQ" && reboot
+		return
+		;;
+	    -u|--update)
+		update_pi
+		;;
+	    -i|--install)
+		install_pkgs
+		;;
+	    -p|--password)
+		chpasswd
+		;;
+	    -U|--user)
+		add_user
+		;;
+	    -H|--hostname)
+		set_hostname
+		;;
+	    -c|--config)
+		install_config
+		;;
+	    -r|--reboot)
+		reboot
+		;;
+	    -h|--help)
+		usage
+		;;
+	    *)
+		usage
+		;;
+	esac
+    done
 }
 
 main "$@"
