@@ -254,15 +254,30 @@ reboot () {
 #                                 URL PARSING                                  #
 ###############################################################################
 
+refresh_window() {
+    local -i user="$1"
+
+    if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
+	sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+    fi
+}
+
 switch_windows() {
-    local url="$1"
+    local url="$1" switch="$2" refresh="$3" user="$4"
 
     read -rep "${GREEN}Page title of ${YELLOW}$url${GREEN}? ${NC}" title
-    read -rep "${GREEN}Time between refreshes (in seconds)? ${NC}" time
 
+    if "$switch"; then
+	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"" /home/"$user"/.xinitrc
+    elif "$refresh"; then
+	if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
+	    sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+	fi
+    fi
+
+    read -rep "${GREEN}Time between refresh or window switch ${YELLOW}(in seconds)${GREEN}? ${NC}" time
     if [[ "$time" =~ ^[0-9]+$ ]]; then
-	sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
-	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"\nxte \"key F5\"\nsleep ${time}s" /home/"$user"/.xinitrc
+	sed -i.bak "/SLEEP/asleep ${time}s" /home/"$user"/.xinitrc
     else
 	echo "${RED}Invalid time. Try again!${NC}"
 	switch_windows "$url"
@@ -270,19 +285,20 @@ switch_windows() {
 }
 
 add_urls() {
-    local switch_refresh
+    local switch=false refresh=false
 
     if [[ "${#URLS[@]}" -gt 1 ]]; then
-	sed -i.bak "/TITLES/awhile \:\; do\n\# WMCTRL\ndone" /home/"$user"/.xinitrc
-	switch_refresh=true
+	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
+	switch=true
     elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
-	sed -i.bak "/TITLES/awhile \:\; do\n\# WMCTRL\ndone" /home/"$user"/.xinitrc
-	switch_refresh=true
+	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
+	refresh=true
     fi
 
     for url in "${URLS[@]}"; do
-	if "$switch_refresh"; then
-	    switch_windows "$url"
+	if [[ "$switch" = true || "$refresh" = true ]]; then
+	    sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+	    switch_windows "$url" "$switch" "$refresh"
 	else
 	    sed -i.bak "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
 	fi
