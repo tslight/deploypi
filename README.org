@@ -1,7 +1,7 @@
 #+TITLE:
 #+AUTHOR: Toby Slight
 
-* RASPBERRY PI DEPLOYMENT
+* AUTOMATED PI KIOSK BROWSER DEPLOYMENT
 
 Script to automate deployment of a Raspberry Pi as a web browser based kiosk to
 display monitoring systems such as those of Nagios, Meraki & Fresh.
@@ -12,7 +12,7 @@ display monitoring systems such as those of Nagios, Meraki & Fresh.
 
 =sudo deploypi [OPTION]=
 
-Optional arguments:
+/Optional arguments:/
 
 |-------+-----------------+-------------------------------------------------------|
 | TERSE | VERBOSE         | DESCRIPTION                                           |
