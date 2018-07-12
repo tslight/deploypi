@@ -446,44 +446,44 @@ main () {
     install_self
     if [[ "${#args[@]}" -eq 0 ]]; then
 	interactive_mode
-	return
+    else
+	for arg in "${args[@]}"; do
+	    case "$arg" in
+		-a|--interactive)
+		    interactive_mode
+		    return
+		    ;;
+		-A|--automatic)
+		    automatic_mode
+		    return
+		    ;;
+		-u|--update)
+		    update_pi
+		    ;;
+		-i|--install)
+		    install_pkgs
+		    ;;
+		-p|--password)
+		    chpasswd
+		    ;;
+		-U|--user)
+		    add_user
+		    ;;
+		-H|--hostname)
+		    set_hostname
+		    ;;
+		-c|--config)
+		    install_config
+		    ;;
+		-r|--reboot)
+		    reboot
+		    ;;
+		-h|--help)
+		    usage
+		    ;;
+	    esac
+	done
     fi
-    for arg in "${args[@]}"; do
-	case "$arg" in
-	    -a|--interactive)
-		install_self
-		return
-		;;
-	    -A|--automatic)
-		automatic_mode
-		return
-		;;
-	    -u|--update)
-		update_pi
-		;;
-	    -i|--install)
-		install_pkgs
-		;;
-	    -p|--password)
-		chpasswd
-		;;
-	    -U|--user)
-		add_user
-		;;
-	    -H|--hostname)
-		set_hostname
-		;;
-	    -c|--config)
-		install_config
-		;;
-	    -r|--reboot)
-		reboot
-		;;
-	    -h|--help)
-		usage
-		;;
-	esac
-    done
 }
 
 main "$@"
