@@ -145,21 +145,19 @@ autoxconf () {
 
     cat > /home/"$user"/.xinitrc <<'EOF'
 #!/bin/sh
-while true; do
-xset -dpms
-xset s off
-# Start the window manager (remove "-use_cursor no" if you actually want mouse interaction)
-matchbox-window-manager -use_titlebar no -use_cursor no &
+while :; do
+xset -dpms; xset s off
+# Start the window manager (add "-use_cursor no" if you don't want mouse interaction)
+matchbox-window-manager -use_titlebar no &
 # examples:
 # chromium-browser  --app=https://support.mcsaatchi.com/helpdesk &
 # chromium-browser --app=http://10.1.1.198/nagiosxi/includes/components/opscreen/opscreen.php &
 # urls here
-while :
-do
-echo &> /dev/null;
+while :; do
+echo &> /dev/null
 # titles here
 done
-done;
+done
 EOF
 }
 
