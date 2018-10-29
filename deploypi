@@ -128,7 +128,7 @@ ask () {
 # install script if not already installed
 install_self() {
     chmod +x "$SELFPATH"
-    if cp "$SELFPATH" /usr/local/bin/"$SELFNAME" 2>&1 > "$LOG"; then
+    if cp "$SELFPATH" /usr/local/bin/"$SELFNAME" &> "$LOG"; then
 	echo "${CYAN}Sucessfully installed $SELFNAME.${NC}"
     fi
 }
