@@ -20,19 +20,20 @@ readonly PURGE_PKGS=(
 )
 
 readonly INSTALL_PKGS=(
-    "neovim"
-    "emacs-nox"
+    "chromium-browser"
     "ed"
-    "tmux"
-    "ranger"
+    "emacs-nox"
+    "git"
     "htop"
-    "ncdu"
-    "xorg"
     "jwm"
     "matchbox-window-manager"
-    "chromium-browser"
+    "ncdu"
+    "neovim"
+    "ranger"
+    "tmux"
     "wmctrl"
     "xautomation"
+    "xorg"
 )
 
 # pwd, scriptname, full path of script & log
