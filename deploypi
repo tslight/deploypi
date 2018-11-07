@@ -310,7 +310,7 @@ ckurl () {
 
 # continuously prompt for urls until the user quits, then return an array of
 # entered urls.
-get_urls() {
+get_urls () {
     read -rep "${GREEN}Enter URL to display: ${NC}" url
     until [ "$url" == "q" ] || [ "$url" == "n" ]; do
 	if ckurl "$url"; then
@@ -379,8 +379,7 @@ EOF
 # process of logging the user into tty1, and then starting and configuring the
 # xsession.
 install_config () {
-    local user url title
-    local -i valid_user=false
+    local valid_user=false
 
     read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user;
     until "$valid_user"; do
@@ -390,7 +389,7 @@ install_config () {
 	    write_profile "$user"
 	    write_xinitrc "$user"
 	    get_urls # returns a instantiation of a global var
-	    add_urls "${URLS[@]}" "$user"
+	    add_urls "$user"
 	    chown "$user":"$user" /home/"$user"/.xinitrc
 	    chown "$user":"$user" /home/"$user"/.bash_profile
 	else
