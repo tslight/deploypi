@@ -281,7 +281,6 @@ add_urls() {
 	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
 	switch=true
     elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
-	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
 	refresh=true
     fi
 
