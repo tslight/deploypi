@@ -1,0 +1,485 @@
+#!/usr/bin/env bash
+
+###############################################################################
+#                                  CONSTANTS                                  #
+###############################################################################
+
+readonly NC=$(tput sgr0)
+readonly BLACK=$(tput setaf 0)
+readonly RED=$(tput setaf 1)
+readonly GREEN=$(tput setaf 2)
+readonly YELLOW=$(tput setaf 3)
+readonly BLUE=$(tput setaf 4)
+readonly MAGENTA=$(tput setaf 5)
+readonly CYAN=$(tput setaf 6)
+readonly WHITE=$(tput setaf 7)
+
+readonly PURGE_PKGS=(
+    "nano"
+    "vim-tiny"
+)
+
+readonly INSTALL_PKGS=(
+    "chromium-browser"
+    "ed"
+    "emacs-nox"
+    "git"
+    "htop"
+    "jwm"
+    "matchbox-window-manager"
+    "ncdu"
+    "neovim"
+    "ranger"
+    "tmux"
+    "wmctrl"
+    "xautomation"
+    "xorg"
+)
+
+# pwd, scriptname, full path of script & log
+readonly SELFDIR="$(cd "$(dirname "$0")"; pwd)"
+readonly SELFNAME=$(basename "$0")
+readonly SELFPATH="$SELFDIR/$SELFNAME"
+readonly LOG="$SELFDIR/deploypi.log"
+
+# global questions
+readonly USERQ="${MAGENTA}Would you like to ${YELLOW}setup a new user${MAGENTA}?${NC} ";
+readonly REBOOTQ="${MAGENTA}Would you like to ${YELLOW}reboot${MAGENTA} now?${NC} ";
+
+
+###############################################################################
+#                                   GLOBALS                                   #
+###############################################################################
+
+# array to store urls entered by user in
+declare -a URLS
+
+
+###############################################################################
+#                                    USAGE                                    #
+###############################################################################
+usage () {
+    echo "
+USAGE:
+
+sudo $SELFNAME [OPTION]
+
+${RED}This script must be run as root.${NC}
+
+Optional arguments:
+
+  -a, --interactive  Executes all actions, interactively.
+  -A, --automate     Executes all actions, automatically.
+  -u, --update       Updates all packages on the system.
+  -i, --install      Installs and removes the necessary packages.
+  -p, --password     Changes the default pi user password.
+  -U, --user         Adds a new user to the system.
+  -H, --hostname     Changes the systems hostname.
+  -c, --config       Writes config files to initialize browser kiosk mode.
+  -r, --reboot       Reboots the system.
+  -h, --help         Display this help and exit.
+
+If no arguments are given, all actions are executed interactively.
+"
+}
+
+
+###############################################################################
+#                                MISC FUNCTIONS                               #
+###############################################################################
+
+chkroot() {
+    if [ "$(id -u)" -ne 0 ]; then
+	usage
+	exit 1
+    fi
+}
+
+# function to read in an answer from the user. keep looping until user enters
+# valid answer.  returns 0 for yes, 1 for no or quit, and an error message for
+# anything else (before re-looping)
+ask () {
+    local question="$1"
+
+    while :; do
+	read -rep "$question" ans;
+	case "$ans" in
+	    [yY]*)
+		return 0
+		;;
+	    [nN]*)
+		return 1
+		;;
+	    [qQ]*)
+		exit 1
+		;;
+	    *)
+		echo "${RED}You must enter either y or n to continue.${NP}"
+		echo "${RED}You can also enter q to quit the script.${NP}"
+		;;
+	esac;
+    done
+}
+
+
+###############################################################################
+#                              PACKAGE MANAGEMENT                             #
+###############################################################################
+
+# install script if not already installed
+install_self() {
+    chmod +x "$SELFPATH"
+    if cp "$SELFPATH" /usr/local/bin/"$SELFNAME" &> "$LOG"; then
+	echo "${CYAN}Sucessfully installed $SELFNAME.${NC}"
+    fi
+}
+
+# function to update the system without any prompting from the user (-y)
+update_pi () {
+    echo "${CYAN}Updating packages...${NC}"
+    apt -y update &> "$LOG"
+    apt -y upgrade &> "$LOG"
+    apt -y dist-upgrade &>"$LOG"
+}
+
+# function to remove packages. takes a package name as an argument.
+remove_pkg () {
+    echo "${CYAN}Removing $pkg...${NC}";
+    apt -y purge "$1" &> "$LOG"
+}
+
+# function to prune no longer needed packages and clean the package caches.
+clean () {
+    echo "${CYAN}Cleaning up...${NC}"
+    apt -y autoremove &> "$LOG"
+    apt -y autoclean &> "$LOG"
+    apt -y clean  &> "$LOG"
+}
+
+# function to install a package. takes the package name as an argument.
+install_pkg () {
+    echo "${CYAN}Installing $pkg...${NC}";
+    apt -y install "$1"
+}
+
+# function that checks what packages from the pre-defined script need to be
+# installed or removed.
+install_pkgs () {
+    local doclean=false pkg
+
+    if [ "${#PURGE_PKGS[@]}" -eq 0 ]; then
+	echo "${CYAN}No packages to remove.${NC}";
+    else
+	for pkg in "${PURGE_PKGS[@]}"; do
+	    if dpkg-query -s "$pkg" &> "$LOG"; then
+		doclean="true";
+		remove_pkg "$pkg";
+	    else
+		echo "${CYAN}$pkg already removed.${NC}"
+	    fi
+	done
+	# run clean function if we remove any packages.
+	[ "$doclean" == "true" ] && clean
+    fi
+
+    if [ "${#INSTALL_PKGS[@]}" -eq 0 ]; then
+	echo "${CYAN}No packages to install.${NC}";
+    else
+	for pkg in "${INSTALL_PKGS[@]}"; do
+	    if ! dpkg-query -s "$pkg" &> "$LOG"; then
+		install_pkg "$pkg";
+	    else
+		echo "${CYAN}$pkg already installed.${NC}";
+	    fi
+	done
+    fi
+}
+
+
+###############################################################################
+#                               ADMIN FUNCTIONS                               #
+###############################################################################
+
+chpasswd() {
+    if passwd pi; then
+	echo "${CYAN}Sucessfully changed default pi user password.${NC}"
+    else
+	if ask "${RED}Changing pi user password failed. Try again? ${NC}"; then
+	    chpasswd
+	fi
+    fi
+}
+
+# function to set up new user. read in user name, add user to
+# specified groups and prompt for password.
+add_user () {
+    local user
+
+    read -rep "${GREEN}Enter User Name: ${NC}" user;
+    if id "$user" >/dev/null 2>&1; then
+	echo "${CYAN}$user already exists.${NC}";
+    else
+	useradd -m -G operator,systemd-journal,sudo,users,netdev -s /bin/bash "$user";
+	passwd "$user";
+    fi
+}
+
+# function to change the devices hostname. read in hostname then echo
+# it into /etc/hostname and /etc/hosts
+set_hostname () {
+    local hostname
+
+    read -rep "${GREEN}Enter hostname: ${NC}" hostname;
+    echo "$hostname" | tee /etc/hostname &>/dev/null;
+    sed -i.bak '$ d' /etc/hosts;
+    echo "127.0.0.1 $hostname" | sudo tee -a /etc/hosts &>/dev/null;
+    echo "${CYAN}Setting hostname complete. You will need to reboot for this change to take effect.${NC}";
+}
+
+reboot () {
+    echo "${CYAN}Set up complete. Rebooting in 2 seconds ... Have a nice day.${NC}"
+    sleep 2
+    systemctl reboot
+}
+
+
+###############################################################################
+#                                 URL PARSING                                 #
+###############################################################################
+
+sleep_time() {
+    local user="$1"
+
+    read -rep "${GREEN}Time ${YELLOW}(in seconds)${GREEN} between refreshes/switches? ${NC}" time
+    if [[ "$time" =~ ^[0-9]+$ ]]; then
+	sed -i.bak "/SLEEP/asleep ${time}s" /home/"$user"/.xinitrc
+    else
+	echo "${RED}Invalid time. Try again!${NC}"
+	sleep_time "$user"
+    fi
+}
+
+switch_refresh() {
+    local url="$1" switch="$2" refresh="$3" user="$4"
+
+    if "$switch"; then
+	read -rep "${GREEN}Enter a substring from ${YELLOW}$url${GREEN} title: ${NC}" title
+	sed -i.bak "/WMCTRL/awmctrl -R \"$title\"" /home/"$user"/.xinitrc
+	if ask "${GREEN}Does this page need to be automatically refreshed? ${NC}"; then
+	    sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+	fi
+    elif "$refresh"; then
+	sed -i.bak "/XTE/axte \"key F5\"" /home/"$user"/.xinitrc
+    fi
+
+    sleep_time "$user"
+}
+
+add_urls() {
+    local switch=false refresh=false user="$1"
+
+    if [[ "${#URLS[@]}" -gt 1 ]]; then
+	sed -i.bak "/TITLES/awhile \:\; do\ndone" /home/"$user"/.xinitrc
+	switch=true
+    elif ask "${GREEN}Would you like to automatically refresh this page? ${NC}"; then
+	refresh=true
+    fi
+
+    for url in "${URLS[@]}"; do
+	if [[ "$switch" = true || "$refresh" = true ]]; then
+	    sed -i.bak "/URLS/achromium-browser --app=\"$url\" &" /home/"$user"/.xinitrc
+	    switch_refresh "$url" "$switch" "$refresh" "$user"
+	else
+	    sed -i.bak "/URLS/achromium-browser --app=\"$url\"" /home/"$user"/.xinitrc
+	fi
+    done
+}
+
+# function to check for valid url. takes a string as an input and checks if
+# contains the substring "http". This needs to be better!  Should do a more
+# advanced RegEx match...
+ckurl () {
+    local url="$1"
+
+    if echo "$url" | grep -q "http"; then
+	return 0;
+    else
+	return 1;
+    fi
+}
+
+# continuously prompt for urls until the user quits, then return an array of
+# entered urls.
+get_urls () {
+    read -rep "${GREEN}Enter URL to display: ${NC}" url
+    until [ "$url" == "q" ] || [ "$url" == "n" ]; do
+	if ckurl "$url"; then
+	    URLS+=("$url")
+	else
+	    echo "${RED}$url is not a valid URL. You numpty Bradley.${NP}"
+	fi
+	read -rep "${GREEN}Enter another URL to display ${YELLOW}(q to quit)${GREEN}: ${NC}" url
+    done
+}
+
+
+###############################################################################
+#                                CONFIG WRITING                               #
+###############################################################################
+
+# function to create systemd write_ttyconf service file, which
+# automatically logs a use into tty1. takes a user name as an
+# argument.
+write_ttyconf () {
+    local user="$1"
+    mkdir -p /etc/systemd/system/getty@tty1.service.d
+    cat > /etc/systemd/system/getty@tty1.service.d/override.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $user --noclear %I $TERM
+EOF
+    cat > /etc/systemd/system/getty@tty1.service.d/noclear.conf <<EOF
+[Service]
+TTYVTDisallocate=no
+EOF
+}
+
+# function to create bash_profile that automatically starts the
+# xserver if the $DISPLAY environmental variable is set (i.e. there is
+# a display to output to), and the tty is tty1 (the tty autologin()
+# logs us into).
+write_profile () {
+    local user="$1"
+
+    cat > /home/"$user"/.bash_profile <<'EOF'
+if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
+startx
+fi
+[ -f ~/.bashrc ] && source ~/.bashrc
+EOF
+}
+
+# function to create an xsession configuration file that starts the
+# window-manager and web browser. takes a user name as an argument.
+write_xinitrc () {
+    local user="$1"
+
+    cat > /home/"$user"/.xinitrc <<'EOF'
+#!/bin/sh
+while :; do
+xset -dpms; xset s off
+matchbox-window-manager -use_titlebar no -use_cursor yes &
+# URLS
+# TITLES
+# XTE
+# SLEEP
+done
+EOF
+}
+
+# Wrapper function to write the necessary configuration files for automating the
+# process of logging the user into tty1, and then starting and configuring the
+# xsession.
+install_config () {
+    local valid_user=false
+
+    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user;
+    until "$valid_user"; do
+	if id "$user" > /dev/null 2>&1; then
+	    valid_user=true
+	    write_ttyconf "$user"
+	    write_profile "$user"
+	    write_xinitrc "$user"
+	    get_urls # returns a instantiation of a global var
+	    add_urls "$user"
+	    chown "$user":"$user" /home/"$user"/.xinitrc
+	    chown "$user":"$user" /home/"$user"/.bash_profile
+	else
+	    echo "${RED}$user doesn't exist.${NC}";
+	    read -rep "${GREEN}Enter the user you would like to give the configuration to: ${NC}" user
+	fi
+    done
+}
+
+
+###############################################################################
+#                                     GO!                                     #
+###############################################################################
+
+automatic_mode() {
+    update_pi
+    install_pkgs
+    chpasswd
+    while ask "$USERQ"; do
+	add_user
+    done
+    set_hostname
+    install_config
+    ask "$REBOOTQ" && reboot
+}
+
+interactive_mode() {
+    local updateq="${MAGENTA}Would you like to ${YELLOW}update${MAGENTA} your packages?${NC} ";
+    local pkgsq="${MAGENTA}Would you like to ${YELLOW}remove and install${MAGENTA} the pre-defined list of packages?${NC} ";
+    local passwdq="${MAGENTA}Would you like to ${YELLOW}change the password${MAGENTA} of default pi user?${NC} ";
+    local hostnameq="${MAGENTA}Would you like to ${YELLOW}change the hostname${MAGENTA}?${NC} ";
+    local configq="${MAGENTA}Would you like to ${YELLOW}install configuration files${MAGENTA} to a user profile?${NC} ";
+
+    ask "$updateq" && update_pi
+    ask "$pkgsq" && install_pkgs
+    ask "$passwdq" && chpasswd
+    while ask "$USERQ"; do
+	add_user
+    done
+    ask "$hostnameq" && set_hostname
+    ask "$configq" && install_config
+    ask "$REBOOTQ" && reboot
+}
+
+main () {
+    local -a args=("$@")
+    chkroot
+    install_self
+    if [[ "${#args[@]}" -eq 0 ]]; then
+	interactive_mode
+    else
+	for arg in "${args[@]}"; do
+	    case "$arg" in
+		-a|--interactive)
+		    interactive_mode
+		    return
+		    ;;
+		-A|--automate)
+		    automatic_mode
+		    return
+		    ;;
+		-u|--update)
+		    update_pi
+		    ;;
+		-i|--install)
+		    install_pkgs
+		    ;;
+		-p|--password)
+		    chpasswd
+		    ;;
+		-U|--user)
+		    add_user
+		    ;;
+		-H|--hostname)
+		    set_hostname
+		    ;;
+		-c|--config)
+		    install_config
+		    ;;
+		-r|--reboot)
+		    reboot
+		    ;;
+		-h|--help)
+		    usage
+		    ;;
+	    esac
+	done
+    fi
+}
+
+main "$@"

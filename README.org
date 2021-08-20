@@ -1,0 +1,40 @@
+#+AUTHOR: Toby Slight
+
+* AUTOMATED PI BROWSER KIOSK DEPLOYMENT
+
+Script to automate deployment of a Raspberry Pi as a web browser based kiosk to
+display monitoring systems such as those of Nagios, Meraki & Fresh.
+
+** USAGE
+
+*This script must be run as root.*
+
+=sudo deploypi [OPTION]=
+
+/Optional arguments:/
+
+|-------+-----------------+-------------------------------------------------------|
+| TERSE | VERBOSE         | DESCRIPTION                                           |
+|-------+-----------------+-------------------------------------------------------|
+| -a    | /--interactive/ | Executes all actions interactively.                   |
+|-------+-----------------+-------------------------------------------------------|
+| -A    | /--automate/    | Executes all actions automatically.                   |
+|-------+-----------------+-------------------------------------------------------|
+| -u    | /--update/      | Updates all packages on the system.                   |
+|-------+-----------------+-------------------------------------------------------|
+| -i    | /--install/     | Installs and removes necessary packages.              |
+|-------+-----------------+-------------------------------------------------------|
+| -p    | /--password/    | Changes the default pi user password.                 |
+|-------+-----------------+-------------------------------------------------------|
+| -U    | /--user/        | Adds a new user to the system.                        |
+|-------+-----------------+-------------------------------------------------------|
+| -H    | /--hostname/    | Changes the systems hostname                          |
+|-------+-----------------+-------------------------------------------------------|
+| -c    | /--config/      | Writes config files to initialize browser kiosk mode. |
+|-------+-----------------+-------------------------------------------------------|
+| -r    | /--reboot/      | Reboots the system.                                   |
+|-------+-----------------+-------------------------------------------------------|
+| -h    | /--help/        | Display this help and exit.                           |
+|-------+-----------------+-------------------------------------------------------|
+
+If no arguments are given, all actions are executed interactively.
